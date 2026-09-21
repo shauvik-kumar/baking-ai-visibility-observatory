@@ -157,6 +157,56 @@ def create_research_tables(conn):
         """
     )
 
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_metrics (
+            response_id INTEGER PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            query_id INTEGER NOT NULL,
+            engine TEXT NOT NULL,
+            model TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            character_count INTEGER NOT NULL,
+            word_count INTEGER NOT NULL,
+            bullet_count INTEGER NOT NULL,
+            heading_count INTEGER NOT NULL,
+            bold_phrase_count INTEGER NOT NULL,
+            url_count INTEGER NOT NULL,
+            FOREIGN KEY (response_id) REFERENCES responses(response_id),
+            FOREIGN KEY (run_id) REFERENCES runs(run_id),
+            FOREIGN KEY (query_id) REFERENCES queries(query_id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_sentences (
+            sentence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            response_id INTEGER NOT NULL,
+            sentence_index INTEGER NOT NULL,
+            sentence_text TEXT NOT NULL,
+            sentence_hash TEXT NOT NULL,
+            FOREIGN KEY (response_id) REFERENCES responses(response_id)
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS response_entities_observed (
+            observation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            response_id INTEGER NOT NULL,
+            query_id INTEGER NOT NULL,
+            entity_text TEXT NOT NULL,
+            canonical_entity TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            FOREIGN KEY (response_id) REFERENCES responses(response_id),
+            FOREIGN KEY (query_id) REFERENCES queries(query_id)
+        )
+        """
+    )
+
 
 def migrate_existing_database(conn):
     """
