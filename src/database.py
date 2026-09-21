@@ -192,6 +192,13 @@ def migrate_existing_database(conn):
         "TEXT",
     )
 
+    add_column_if_missing(
+        conn,
+        "responses",
+        "raw_interaction",
+        "TEXT",
+    )
+
 
 def initialize_database():
     DB_PATH.parent.mkdir(

@@ -115,6 +115,7 @@ def save_response(
     status,
     latency_ms,
     raw_response,
+    raw_interaction,
     error_message,
 ):
     conn = sqlite3.connect(DB_PATH)
@@ -130,9 +131,10 @@ def save_response(
             response_status,
             latency_ms,
             raw_response,
+            raw_interaction,
             error_message
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             run_id,
@@ -221,6 +223,7 @@ def run():
             status=result["status"],
             latency_ms=result["latency_ms"],
             raw_response=result["text"],
+            raw_interaction=result["raw_interaction"],
             error_message=result["error"],
         )
 
