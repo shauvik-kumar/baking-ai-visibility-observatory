@@ -21,12 +21,6 @@ REQUIRED_COLUMNS = [
 
 
 def load_questions(path=BENCHMARK_PATH):
-    """
-    Load benchmark questions from CSV.
-
-    Returns a list of dictionaries.
-    """
-
     if not path.exists():
         raise FileNotFoundError(
             f"Benchmark file not found: {path}"
@@ -42,8 +36,8 @@ def load_questions(path=BENCHMARK_PATH):
 
         if reader.fieldnames != REQUIRED_COLUMNS:
             raise ValueError(
-                "Benchmark columns do not match the "
-                f"required schema.\n"
+                "Benchmark columns do not match "
+                "the required schema.\n"
                 f"Expected: {REQUIRED_COLUMNS}\n"
                 f"Found: {reader.fieldnames}"
             )
@@ -52,21 +46,31 @@ def load_questions(path=BENCHMARK_PATH):
 
         for row in reader:
 
-            row["question_id"] = int(
-                row["question_id"]
-            )
+            question_id = int(row["question_id"])
+            active = int(row["active"])
 
-            row["active"] = int(
-                row["active"]
-            )
-
-            if row["active"] not in (0, 1):
+            if active not in (0, 1):
                 raise ValueError(
                     f"Invalid active value for "
-                    f"question {row['question_id']}"
+                    f"question {question_id}"
                 )
 
-            questions.append(row)
+            questions.append(
+                {
+                    "query_id": question_id,
+                    "query": row["question"],
+                    "category": row["category"],
+                    "subcategory": row["subcategory"],
+                    "intent": row["intent"],
+                    "geography": row["geography"],
+                    "commercial_intent": row[
+                        "commercial_intent"
+                    ],
+                    "entity_type": row["entity_type"],
+                    "difficulty": row["difficulty"],
+                    "active": active,
+                }
+            )
 
     validate_questions(questions)
 
@@ -74,9 +78,6 @@ def load_questions(path=BENCHMARK_PATH):
 
 
 def validate_questions(questions):
-    """
-    Validate benchmark integrity.
-    """
 
     if not questions:
         raise ValueError(
@@ -84,7 +85,7 @@ def validate_questions(questions):
         )
 
     question_ids = [
-        question["question_id"]
+        question["query_id"]
         for question in questions
     ]
 
@@ -94,7 +95,7 @@ def validate_questions(questions):
         )
 
     question_texts = [
-        question["question"].strip()
+        question["query"].strip()
         for question in questions
     ]
 
@@ -107,17 +108,14 @@ def validate_questions(questions):
 
     for question in questions:
 
-        if not question["question"].strip():
+        if not question["query"].strip():
             raise ValueError(
                 f"Empty question for "
-                f"question_id {question['question_id']}"
+                f"question_id {question['query_id']}"
             )
 
 
 def get_active_questions():
-    """
-    Return only active benchmark questions.
-    """
 
     return [
         question

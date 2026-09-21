@@ -31,8 +31,8 @@ def main():
     for question in questions:
 
         print(
-            f"Q{question['question_id']} | "
-            f"{question['question']}"
+            f"Q{question['query_id']} | "
+            f"{question['query']}"
         )
 
     print()

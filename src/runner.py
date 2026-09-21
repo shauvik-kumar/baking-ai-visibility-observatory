@@ -12,11 +12,12 @@ from experiment import (
     PROMPT_MODE,
 )
 from gemini_adapter import ask_gemini
-from questions import QUESTIONS
+from benchmark_loader import get_active_questions
 
 
 ENGINE = "gemini"
 
+QUESTIONS = get_active_questions()
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
