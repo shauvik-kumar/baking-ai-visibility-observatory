@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .vscode/
+
+# Research data and generated outputs
+data/
+*.csv
