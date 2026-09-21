@@ -8,3 +8,4 @@ __pycache__/
 # Research data and generated outputs
 data/
 *.csv
+!benchmark/questions.csv

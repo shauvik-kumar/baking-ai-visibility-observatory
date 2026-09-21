@@ -1,0 +1,11 @@
+question_id,question,category,subcategory,intent,geography,commercial_intent,entity_type,difficulty,active
+1,What are the best home bakeries in Noida?,local,bakery,discovery,Noida,high,business,medium,1
+2,Where can I order an eggless birthday cake in Noida?,local,cake,transactional,Noida,high,business,medium,1
+3,How much does a 1 kg custom cake usually cost in Noida?,local,cake pricing,commercial research,Noida,high,product/service,medium,1
+4,What is the best type of cake for a child's birthday party?,cake,selection,informational,India,medium,product,easy,1
+5,How do I make an eggless chocolate cake?,recipe,eggless cake,informational,India,low,recipe,easy,1
+6,Why does my eggless cake sink after baking?,baking,troubleshooting,informational,India,low,problem,medium,1
+7,What are the best online baking classes for beginners in India?,baking classes,online,commercial research,India,high,course,medium,1
+8,How much does an online baking class usually cost in India?,baking classes,pricing,commercial research,India,high,course,easy,1
+9,What is a good oven for home baking in India?,equipment,oven,commercial research,India,high,product,medium,1
+10,What is better for a cake: buttercream or whipped cream?,cake,frosting,comparison,India,low,ingredient,easy,1
