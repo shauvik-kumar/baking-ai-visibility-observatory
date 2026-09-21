@@ -11,8 +11,12 @@ GEMINI_MODEL = "gemini-3.6-flash"
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 
-if not API_KEY:
-    raise RuntimeError(
-        "GEMINI_API_KEY is not loaded. "
-        "Load .env before running the project."
-    )
+
+def require_api_key():
+    if not API_KEY:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not loaded. "
+            "Load .env before running Gemini."
+        )
+
+    return API_KEY

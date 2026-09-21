@@ -1,16 +1,21 @@
+import sqlite3
+import time
 import uuid
 from datetime import datetime, timezone
 
-from database import get_connection, initialize_database
-from gemini_adapter import ask_gemini
-from questions import QUESTIONS
-
+from config import DB_PATH, GEMINI_MODEL
+from database import initialize_database
 from experiment import (
     EXPERIMENT_ID,
     EXPERIMENT_VERSION,
     QUESTION_SET_VERSION,
     PROMPT_MODE,
 )
+from gemini_adapter import ask_gemini
+from questions import QUESTIONS
+
+
+ENGINE = "gemini"
 
 
 def utc_now():
@@ -18,54 +23,11 @@ def utc_now():
 
 
 def create_run():
-    return str(uuid.uuid4())
+    run_id = str(uuid.uuid4())
 
+    conn = sqlite3.connect(DB_PATH)
 
-def seed_questions(connection):
-    for item in QUESTIONS:
-        connection.execute(
-            """
-            INSERT OR IGNORE INTO queries (
-                query,
-                category,
-                subcategory,
-                intent,
-                geography,
-                commercial_intent,
-                entity_type,
-                difficulty,
-                active,
-                created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-            """,
-            (
-                item["query"],
-                item["category"],
-                item["subcategory"],
-                item["intent"],
-                item["geography"],
-                item["commercial_intent"],
-                item["entity_type"],
-                item["difficulty"],
-                utc_now(),
-            ),
-        )
-
-    connection.commit()
-
-
-def run_experiment():
-    initialize_database()
-
-    connection = get_connection()
-
-    seed_questions(connection)
-
-    run_id = create_run()
-    started_at = utc_now()
-
-    connection.execute(
+    conn.execute(
         """
         INSERT INTO runs (
             run_id,
@@ -80,115 +42,231 @@ def run_experiment():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            (
-                run_id,
-                started_at,
-                "running",
-                len(QUESTIONS),
-                EXPERIMENT_ID,
-                EXPERIMENT_VERSION,
-                QUESTION_SET_VERSION,
-                PROMPT_MODE,
-            )
+            run_id,
+            utc_now(),
+            "running",
+            len(QUESTIONS),
+            EXPERIMENT_ID,
+            EXPERIMENT_VERSION,
+            QUESTION_SET_VERSION,
+            PROMPT_MODE,
         ),
     )
 
-    connection.commit()
+    conn.commit()
+    conn.close()
 
-    print(f"\nRUN ID: {run_id}")
-    print(f"Questions: {len(QUESTIONS)}")
-    print("-" * 60)
+    return run_id
 
-    rate_limit = False
 
-    for index, item in enumerate(QUESTIONS, start=1):
+def get_completed_query_ids(run_id):
+    conn = sqlite3.connect(DB_PATH)
 
-        print(f"\n[{index}/{len(QUESTIONS)}] {item['query']}")
+    rows = conn.execute(
+        """
+        SELECT query_id
+        FROM responses
+        WHERE run_id = ?
+          AND response_status = 'success'
+        """,
+        (run_id,),
+    ).fetchall()
 
-        query_row = connection.execute(
-            """
-            SELECT query_id
-            FROM queries
-            WHERE query = ?
-            """,
-            (item["query"],),
-        ).fetchone()
+    conn.close()
 
-        result = ask_gemini(item["query"])
+    return {row[0] for row in rows}
 
-        connection.execute(
-            """
-            INSERT INTO responses (
-                run_id,
-                query_id,
-                engine,
-                model,
-                timestamp,
-                response_status,
-                latency_ms,
-                raw_response,
-                error_message
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                run_id,
-                query_row["query_id"],
-                "gemini",
-                "gemini-3.6-flash",
-                utc_now(),
-                result["status"],
-                result["latency_ms"],
-                result["text"],
-                result["error"],
-            ),
+
+def get_or_create_run():
+    """
+    Resume the most recent running/partial run when possible.
+    Otherwise create a new run.
+    """
+
+    conn = sqlite3.connect(DB_PATH)
+
+    row = conn.execute(
+        """
+        SELECT run_id
+        FROM runs
+        WHERE status IN ('running', 'partial')
+        ORDER BY started_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+
+    conn.close()
+
+    if row:
+        print(f"RESUMING RUN = {row[0]}")
+        return row[0]
+
+    run_id = create_run()
+
+    print(f"NEW RUN = {run_id}")
+
+    return run_id
+
+
+def save_response(
+    run_id,
+    query_id,
+    status,
+    latency_ms,
+    raw_response,
+    error_message,
+):
+    conn = sqlite3.connect(DB_PATH)
+
+    conn.execute(
+        """
+        INSERT INTO responses (
+            run_id,
+            query_id,
+            engine,
+            model,
+            timestamp,
+            response_status,
+            latency_ms,
+            raw_response,
+            error_message
         )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            run_id,
+            query_id,
+            ENGINE,
+            GEMINI_MODEL,
+            utc_now(),
+            status,
+            latency_ms,
+            raw_response,
+            error_message,
+        ),
+    )
 
-        connection.commit()
+    conn.commit()
+    conn.close()
 
-        if result["status"] == "success":
-            print(f"Success | {result['latency_ms']} ms")
 
-        elif result["error_type"] == "rate_limit":
-            print("RATE LIMIT REACHED")
-            print("Stopping this run safely.")
-            rate_limit = True
-            break
+def update_run_status(run_id, status):
+    conn = sqlite3.connect(DB_PATH)
 
-        else:
-            print(f"ERROR | {result['error']}")
-
-    completed_at = utc_now()
-
-    final_status = "completed"
-
-    # If the loop was stopped because of a rate limit,
-    # this run is partial rather than completed.
-    if "rate_limit" in locals() and rate_limit:
-        final_status = "partial"
-
-    connection.execute(
+    conn.execute(
         """
         UPDATE runs
-        SET completed_at = ?,
-            status = ?
+        SET
+            status = ?,
+            completed_at = ?
         WHERE run_id = ?
         """,
         (
-            completed_at,
-            final_status,
+            status,
+            utc_now(),
             run_id,
         ),
     )
 
-    connection.commit()
-    connection.close()
+    conn.commit()
+    conn.close()
 
-    print("\n" + "=" * 60)
-    print("EXPERIMENT COMPLETE")
-    print(f"RUN ID: {run_id}")
-    print("=" * 60)
+
+def run():
+    initialize_database()
+
+    run_id = get_or_create_run()
+
+    completed_query_ids = get_completed_query_ids(run_id)
+
+    print(
+        f"EXPERIMENT = {EXPERIMENT_ID} "
+        f"v{EXPERIMENT_VERSION}"
+    )
+
+    print(
+        f"QUESTION SET = {QUESTION_SET_VERSION}"
+    )
+
+    print(
+        f"QUESTIONS ALREADY COMPLETED = "
+        f"{len(completed_query_ids)}"
+    )
+
+    rate_limit = False
+
+    for question in QUESTIONS:
+
+        query_id = question["query_id"]
+
+        if query_id in completed_query_ids:
+            print(
+                f"SKIP — ALREADY COMPLETE | "
+                f"Q{query_id} | {question['query']}"
+            )
+            continue
+
+        print()
+        print(
+            f"RUNNING | Q{query_id} | "
+            f"{question['query']}"
+        )
+
+        result = ask_gemini(question["query"])
+
+        save_response(
+            run_id=run_id,
+            query_id=query_id,
+            status=result["status"],
+            latency_ms=result["latency_ms"],
+            raw_response=result["text"],
+            error_message=result["error"],
+        )
+
+        if result["status"] == "success":
+
+            print(
+                f"SUCCESS | Q{query_id} | "
+                f"{result['latency_ms']} ms"
+            )
+
+        else:
+
+            print(
+                f"ERROR | Q{query_id} | "
+                f"{result['error_type']}"
+            )
+
+            if result["error_type"] == "rate_limit":
+
+                print()
+                print(
+                    "RATE LIMIT REACHED — "
+                    "stopping run safely."
+                )
+
+                rate_limit = True
+                break
+
+        time.sleep(1)
+
+    if rate_limit:
+        update_run_status(run_id, "partial")
+
+        print()
+        print("RUN STATUS = PARTIAL")
+        print("Completed observations have been preserved.")
+        print("The next run can resume this run.")
+
+    else:
+        update_run_status(run_id, "completed")
+
+        print()
+        print("RUN STATUS = COMPLETED")
+
+    print()
+    print(f"RUN ID = {run_id}")
 
 
 if __name__ == "__main__":
-    run_experiment()
+    run()

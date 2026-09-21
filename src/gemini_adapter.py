@@ -2,13 +2,27 @@ import time
 
 from google import genai
 
-from config import GEMINI_MODEL
+from config import GEMINI_MODEL, require_api_key
 
 
-client = genai.Client()
+def ask_gemini(question: str) -> dict:
+    """
+    Send one research question to Gemini.
 
+    Returns:
+        {
+            "status": "success" | "error",
+            "latency_ms": int,
+            "text": str | None,
+            "error": str | None,
+            "error_type": str | None,
+        }
+    """
 
-def ask_gemini(question: str):
+    require_api_key()
+
+    client = genai.Client()
+
     start = time.perf_counter()
 
     try:
@@ -40,7 +54,7 @@ def ask_gemini(question: str):
         return {
             "status": "error",
             "latency_ms": latency_ms,
-            "text": "",
+            "text": None,
             "error": error_text,
             "error_type": error_type,
         }
